@@ -1,0 +1,97 @@
+ METHOD imprimir_remision.
+*----------------------------------------------------------------------*
+*                Fabrica de Software ABAP NEORIS                       *
+*----------------------------------------------------------------------*
+* Clase                 : ZCL_CSDSHP_REMISION                          *
+* Descripción           : Formato de Remision                          *
+* Funcional             : Alejandra Barragan                           *
+* Desarrollador         : Belem Salazar-ID: ABAP_01                    *
+* Diseñador Técnico     : FSD001-Formato de Remision                   *
+* Fecha de Creación     : 10.10.2025                                   *
+* ID del Componente     : DEVK929455                                   *
+* Número de Req.        :                                              *
+*----------------------------------------------------------------------*
+
+*----------------------------------------------------------------------*
+*Estructuras
+*----------------------------------------------------------------------*
+   DATA:
+     ls_control_param  TYPE ssfctrlop,
+     ls_output_options TYPE ssfcompop.
+
+*----------------------------------------------------------------------*
+*Variables
+*----------------------------------------------------------------------*
+   DATA:
+     lv_fm_name TYPE rs38l_fnam.
+
+*----------------------------------------------------------------------*
+*Logica de proceso de impresión
+*----------------------------------------------------------------------*
+
+   " Limpiar estructuras para evitar basura de memoria
+   CLEAR: ls_control_param, ls_output_options.
+
+   " 1. Mapeo explícito desde NAST a las opciones de salida (Output Options)
+   ls_output_options-tddest   = iv_nast-ldest.   " Dispositivo de salida (Impresora)
+   ls_output_options-tdcopies = iv_nast-anzal.   " Número de copias
+   ls_output_options-tdimmed  = iv_nast-dimme.   " Imprimir inmediatamente
+   ls_output_options-tddelete = iv_nast-delet.   " Borrar tras impresión (Spool)
+   ls_output_options-tdnewid  = 'X'.             " Generar nueva orden de spool
+
+   " 2. Configuración de los parámetros de control (Control Parameters)
+   ls_control_param-device      = 'PRINTER'.
+   ls_control_param-preview     = ' '.           " Sin vista previa
+   ls_control_param-no_dialog   = 'X'.           " Sin popup (update task no lo permite)
+
+   TRY.
+
+       " 3. Obtener el nombre de la función del SmartForm
+       CALL FUNCTION 'SSF_FUNCTION_MODULE_NAME'
+         EXPORTING
+           formname           = 'ZSM_CSDSHP_REMISION01'
+         IMPORTING
+           fm_name            = lv_fm_name
+         EXCEPTIONS
+           no_form            = 1
+           no_function_module = 2
+           OTHERS             = 3.
+       IF sy-subrc = 0.
+
+         IF NOT gt_kunnr[] IS INITIAL.
+
+           SORT gt_items BY kunnr tknum vbeln vbeln_p.
+           SORT gt_kunnr BY kunnr vbeln.
+
+           " 4. Llamada al SmartForm → genera la salida y la envía al spool
+           CALL FUNCTION lv_fm_name
+             EXPORTING
+               control_parameters = ls_control_param
+               output_options     = ls_output_options
+               user_settings      = space " Usar los parámetros de NAST, no los de SU3
+               iv_num1            = gv_num1
+               iv_num             = gv_tknum
+               iv_kna1            = gv_kna1
+               iv_observa         = gv_observa
+               iv_header          = gv_header
+               iv_direc_f         = gv_direc_f
+             TABLES
+               it_item            = gt_items
+               it_tknum           = gt_tknum
+               it_kunnr           = gt_kunnr
+               it_adrc            = gt_direc_c
+               it_adrc_e          = gt_direc_e
+             EXCEPTIONS
+               formatting_error   = 1
+               internal_error     = 2
+               send_error         = 3
+               user_canceled      = 4
+               OTHERS             = 5.
+
+         ENDIF.
+
+       ENDIF.
+
+   ENDTRY.
+
+ ENDMETHOD.
