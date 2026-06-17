@@ -1,79 +1,99 @@
-CLASS zcxcl_bmmrmtbm_mb_doc_fleetio DEFINITION
-  PUBLIC
-  FINAL
-  CREATE PUBLIC .
+class ZCXCL_BMMRMTBM_MB_DOC_FLEETIO definition
+  public
+  final
+  create public .
 
-  PUBLIC SECTION.
+public section.
 
-    TYPES:
-      tt_flt_conf TYPE TABLE OF zta0117_flt_conf .
-    TYPES:
-      tt_flt_bwar TYPE TABLE OF zta0117_flt_bwar .
-    TYPES:
-      BEGIN OF ty_mkpf_json,
-        mblnr TYPE mkpf-mblnr,
-        mjahr TYPE mkpf-mjahr,
-        budat TYPE mkpf-budat,
-        cpudt TYPE mkpf-cpudt,
-        cputm TYPE mkpf-cputm,
-        usnam TYPE mkpf-usnam,
+  types:
+    tt_flt_conf TYPE TABLE OF zta0117_flt_conf .
+  types:
+    tt_flt_bwar TYPE TABLE OF zta0117_flt_bwar .
+  types:
+    BEGIN OF ty_mkpf_json,
+        mblnr TYPE string,
+        mjahr TYPE string,
+        budat TYPE string,
+        cpudt TYPE string,
+        cputm TYPE string,
+        usnam TYPE string,
       END OF ty_mkpf_json .
-    TYPES:
-      BEGIN OF ty_mseg_json,
-        mblnr TYPE mseg-mblnr,
-        mjahr TYPE mseg-mjahr,
-        zeile TYPE mseg-zeile,
-        aufnr TYPE mseg-aufnr,
-        bwart TYPE mseg-bwart,
-        matnr TYPE mseg-matnr,
-        werks TYPE mseg-werks,
-        lgort TYPE mseg-lgort,
+  types:
+    BEGIN OF ty_mseg_json,
+        mblnr TYPE string,
+        mjahr TYPE string,
+        zeile TYPE string,
+        aufnr TYPE string,
+        bwart TYPE string,
+        matnr TYPE string,
+        werks TYPE string,
+        lgort TYPE string,
         menge TYPE string,
         erfmg TYPE string,
-        meins TYPE mseg-meins,
-        erfme TYPE mseg-erfme,
-        shkzg TYPE mseg-shkzg,
-        rsnum TYPE mseg-rsnum,
-        rspos TYPE mseg-rspos,
-        ebeln TYPE mseg-ebeln,
-        ebelp TYPE mseg-ebelp,
-        belnr TYPE mseg-belnr,
-        buzei TYPE mseg-buzei,
-        kzear TYPE mseg-kzear,
-        equnr TYPE mseg-equnr,
-        smbln TYPE mseg-smbln,
-        smblp TYPE mseg-smblp,
-        txz01 TYPE ekpo-txz01,
+        meins TYPE string,
+        erfme TYPE string,
+        shkzg TYPE string,
+        rsnum TYPE string,
+        rspos TYPE string,
+        ebeln TYPE string,
+        ebelp TYPE string,
+        belnr TYPE string,
+        buzei TYPE string,
+        kzear TYPE string,
+        equnr TYPE string,
+        smbln TYPE string,
+        smblp TYPE string,
+        txz01 TYPE string,
       END OF ty_mseg_json .
-    TYPES:
-      BEGIN OF ty_mara_json,
-        matnr TYPE mara-matnr,
-        mtart TYPE mara-mtart,
-        matkl TYPE mara-matkl,
-        meins TYPE mara-meins,
+  types:
+    BEGIN OF ty_mara_json,
+        matnr TYPE string,
+        mtart TYPE string,
+        matkl TYPE string,
+        meins TYPE string,
       END OF ty_mara_json .
-    TYPES:
-      BEGIN OF ty_makt_json,
-        spras TYPE makt-spras,
+  types:
+    BEGIN OF ty_makt_json,
+        spras TYPE string,
         maktx TYPE string,
         maktg TYPE string,
       END OF ty_makt_json .
-    TYPES:
-      BEGIN OF ty_mard_json,
-        matnr TYPE mard-matnr,
-        werks TYPE mard-werks,
-        lgort TYPE mard-lgort,
+  types:
+    BEGIN OF ty_mard_json,
+        matnr TYPE string,
+        werks TYPE string,
+        lgort TYPE string,
         labst TYPE string,
       END OF ty_mard_json .
-    TYPES:
-      BEGIN OF ty_derived_data_json,
+  types:
+    BEGIN OF ty_derived_data_json,
         quantity         TYPE string,
         inventory_action TYPE string,
         signed_quantity  TYPE string,
         uom_published    TYPE string,
       END OF ty_derived_data_json .
-    TYPES:
-      BEGIN OF ty_payload_json,
+  types:
+    BEGIN OF ty_service_line_json,
+        packno TYPE string,
+        extrow TYPE string,
+        introw TYPE string,
+        srvpos TYPE string,
+        ktext1 TYPE string,
+        menge  TYPE string,
+        meins  TYPE string,
+        brtwr  TYPE string,
+        netwr  TYPE string,
+      END OF ty_service_line_json .
+  types:
+    tt_service_line_json TYPE STANDARD TABLE OF ty_service_line_json WITH EMPTY KEY .
+  types:
+    BEGIN OF ty_service_data_json,
+        packno        TYPE string,
+        waers         TYPE string,
+        service_lines TYPE tt_service_line_json,
+      END OF ty_service_data_json .
+  types:
+    BEGIN OF ty_payload_json,
         system_source  TYPE string,
         object_key     TYPE string,
         log_number     TYPE string,
@@ -86,58 +106,62 @@ CLASS zcxcl_bmmrmtbm_mb_doc_fleetio DEFINITION
         makt           TYPE ty_makt_json,
         mard           TYPE ty_mard_json,
         derived_data   TYPE ty_derived_data_json,
+        service_data   TYPE ty_service_data_json,
       END OF ty_payload_json .
-    TYPES:
-      BEGIN OF ty_token_response,
+  types:
+    BEGIN OF ty_token_response,
         access_token   TYPE string,
         expires_in     TYPE i,
         ext_expires_in TYPE i,
         token_type     TYPE string,
       END OF ty_token_response .
 
-    DATA it_active_plants TYPE tt_flt_conf .
-    DATA it_active_bwart TYPE tt_flt_bwar .
-    DATA:
-      r_allowed_mtart TYPE RANGE OF mtart .
+  data IT_ACTIVE_PLANTS type TT_FLT_CONF .
+  data IT_ACTIVE_BWART type TT_FLT_BWAR .
+  data:
+    r_allowed_mtart TYPE RANGE OF mtart .
 
-    METHODS load_configuration .
-    TYPE-POOLS abap .
-    METHODS validate_document
-      IMPORTING
-        !iw_mkpf        TYPE mkpf
-        !iw_mseg        TYPE mseg
-      RETURNING
-        VALUE(rv_valid) TYPE abap_bool .
-    METHODS build_json_payload
-      IMPORTING
-        !iw_mkpf       TYPE mkpf
-        !iw_mseg       TYPE mseg
-      RETURNING
-        VALUE(rv_json) TYPE string .
-    METHODS send_to_fleetio
-      IMPORTING
-        !iv_json       TYPE string
-      EXPORTING
-        !ev_success    TYPE char1
-        !ev_response   TYPE string
-        !ev_error_text TYPE string .
-    METHODS write_log
-      IMPORTING
-        !iw_mkpf       TYPE mkpf
-        !iw_mseg       TYPE mseg
-        !iv_json       TYPE string
-        !iv_response   TYPE string
-        !iv_status     TYPE char5
-        !iv_error_text TYPE string .
-    METHODS get_token
-      EXPORTING
-        !ev_success        TYPE char1
-        !ev_token_response TYPE ty_token_response
-        !ev_error_text     TYPE string .
+  methods LOAD_CONFIGURATION .
+  type-pools ABAP .
+  methods VALIDATE_DOCUMENT
+    importing
+      !IW_MKPF type MKPF
+      !IW_MSEG type MSEG
+    returning
+      value(RV_VALID) type ABAP_BOOL .
+  methods BUILD_JSON_PAYLOAD
+    importing
+      !IW_MKPF type MKPF
+      !IW_MSEG type MSEG
+    returning
+      value(RV_JSON) type STRING .
+  methods SEND_TO_FLEETIO
+    importing
+      !IV_JSON type STRING
+    exporting
+      !EV_SUCCESS type CHAR1
+      !EV_RESPONSE type STRING
+      !EV_ERROR_TEXT type STRING .
+  methods WRITE_LOG
+    importing
+      !IV_LOG_NUMBER type ZTA0117_FLT_LOG_NUMBER
+      !IW_MKPF type MKPF
+      !IW_MSEG type MSEG
+      !IV_JSON type STRING
+      !IV_RESPONSE type STRING
+      !IV_STATUS type CHAR5
+      !IV_ERROR_TEXT type STRING .
+  methods GET_TOKEN
+    exporting
+      !EV_SUCCESS type CHAR1
+      !EV_TOKEN_RESPONSE type TY_TOKEN_RESPONSE
+      !EV_ERROR_TEXT type STRING .
+  methods SET_LOG_EXTE
+    importing
+      !IV_LOG_NUMBER type ZTA0117_FLT_LOG_NUMBER
+      !IV_JSON type STRING .
   PROTECTED SECTION.
-  PRIVATE SECTION.
-
-    DATA v_log_number TYPE char20 .
+private section.
 ENDCLASS.
 
 
@@ -177,17 +201,48 @@ CLASS ZCXCL_BMMRMTBM_MB_DOC_FLEETIO IMPLEMENTATION.
       END OF lty_mard,
 
       BEGIN OF lty_ekpo,
-        ebeln TYPE ekpo-ebeln,
-        ebelp TYPE ekpo-ebelp,
-        txz01 TYPE ekpo-txz01,
-      END OF lty_ekpo.
+        ebeln  TYPE ekpo-ebeln,
+        ebelp  TYPE ekpo-ebelp,
+        txz01  TYPE ekpo-txz01,
+        pstyp  TYPE ekpo-pstyp,
+        packno TYPE ekpo-packno,
+      END OF lty_ekpo,
+
+      BEGIN OF lty_eslh,
+        packno  TYPE eslh-packno,
+        fpackno TYPE eslh-fpackno,
+        hpackno TYPE eslh-hpackno,
+        waers   TYPE eslh-waers,
+      END OF lty_eslh,
+
+      BEGIN OF lty_esll,
+        packno     TYPE esll-packno,
+        introw     TYPE esll-introw,
+        extrow     TYPE esll-extrow,
+        srvpos     TYPE esll-srvpos,
+        sub_packno TYPE esll-sub_packno,
+        ktext1     TYPE esll-ktext1,
+        menge      TYPE esll-menge,
+        meins      TYPE esll-meins,
+        brtwr      TYPE esll-brtwr,
+        netwr      TYPE esll-netwr,
+      END OF lty_esll.
 
     DATA:
       lw_mara    TYPE lty_mara,
       lw_makt    TYPE lty_makt,
       lw_mard    TYPE lty_mard,
       lw_ekpo    TYPE lty_ekpo,
+      lw_eslh    TYPE lty_eslh,
+      lw_esll    TYPE lty_esll,
       lw_payload TYPE ty_payload_json.
+
+    DATA:
+      li_esll_pack    TYPE TABLE OF lty_esll,
+      li_esll_subpack TYPE TABLE OF lty_esll.
+
+    DATA:
+      lw_svc_line TYPE ty_service_line_json.
 
     DATA:
       lv_quantity      TYPE menge_d,
@@ -223,7 +278,7 @@ CLASS ZCXCL_BMMRMTBM_MB_DOC_FLEETIO IMPLEMENTATION.
     ENDIF.
 
     "Leer texto del material
-    SELECT SINGLE ebeln ebelp txz01
+    SELECT SINGLE ebeln ebelp txz01 pstyp packno
       FROM ekpo
       INTO lw_ekpo
       WHERE ebeln = iw_mseg-ebeln
@@ -261,7 +316,7 @@ CLASS ZCXCL_BMMRMTBM_MB_DOC_FLEETIO IMPLEMENTATION.
                 INTO lv_object_key SEPARATED BY '-'.
 
     "Construir JSON con estructura
-    lw_payload-system_source  = 'TSUCLNT010'.
+    lw_payload-system_source  = |{ sy-sysid }CLNT{ sy-mandt }|.
     lw_payload-object_key     = lv_object_key.
     lw_payload-log_number     = lv_object_key.
     lw_payload-transaction_id = lv_object_key.
@@ -324,6 +379,54 @@ CLASS ZCXCL_BMMRMTBM_MB_DOC_FLEETIO IMPLEMENTATION.
     lw_payload-derived_data-inventory_action = lv_inv_action.
     lw_payload-derived_data-signed_quantity  = |{ lv_signed_qty NUMBER = USER }|. CONDENSE lw_payload-derived_data-signed_quantity NO-GAPS.
     lw_payload-derived_data-uom_published    = lv_uom_published.
+
+    "Derivar serviceData para posiciones de servicio ---
+    IF iw_mseg-ebeln IS NOT INITIAL AND iw_mseg-ebelp IS NOT INITIAL.
+      IF lw_ekpo-pstyp = '9'.
+        lw_payload-service_data-packno = lw_ekpo-packno.
+
+        "Leer ESLH para obtener moneda y paquetes de líneas
+        SELECT SINGLE packno fpackno hpackno waers
+          FROM eslh
+          INTO lw_eslh
+          WHERE ebeln = iw_mseg-ebeln
+            AND ebelp = iw_mseg-ebelp.
+
+        IF sy-subrc = 0.
+          lw_payload-service_data-waers = lw_eslh-waers.
+
+          "Leer líneas de servicio de ESLL
+          SELECT packno introw extrow srvpos sub_packno ktext1
+                 menge meins brtwr netwr
+            FROM esll
+            INTO TABLE li_esll_pack
+            WHERE packno = lw_ekpo-packno.
+          IF sy-subrc = 0.
+            "Leer líneas de servicio de ESLL
+            SELECT packno introw extrow srvpos sub_packno ktext1
+                   menge meins brtwr netwr
+              FROM esll
+              INTO TABLE li_esll_subpack
+              FOR ALL ENTRIES IN li_esll_pack
+              WHERE packno = li_esll_pack-sub_packno.
+          ENDIF.
+
+          LOOP AT li_esll_subpack INTO lw_esll.
+            CLEAR lw_svc_line.
+            lw_svc_line-packno = lw_esll-packno.
+            lw_svc_line-extrow = lw_esll-extrow.
+            lw_svc_line-introw = lw_esll-introw.
+            lw_svc_line-srvpos = lw_esll-srvpos.
+            lw_svc_line-ktext1 = lw_esll-ktext1.
+            lw_svc_line-menge  = |{ lw_esll-menge NUMBER = USER }|. CONDENSE lw_svc_line-menge NO-GAPS.
+            lw_svc_line-meins  = lw_esll-meins.
+            lw_svc_line-brtwr  = |{ lw_esll-brtwr NUMBER = USER }|. CONDENSE lw_svc_line-brtwr NO-GAPS.
+            lw_svc_line-netwr  = |{ lw_esll-netwr NUMBER = USER }|. CONDENSE lw_svc_line-netwr NO-GAPS.
+            APPEND lw_svc_line TO lw_payload-service_data-service_lines.
+          ENDLOOP.
+        ENDIF.
+      ENDIF.
+    ENDIF.
 
     "Serializar a JSON
     rv_json = /ui2/cl_json=>serialize(
@@ -768,6 +871,58 @@ CLASS ZCXCL_BMMRMTBM_MB_DOC_FLEETIO IMPLEMENTATION.
 
 
 * <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Instance Public Method ZCXCL_BMMRMTBM_MB_DOC_FLEETIO->SET_LOG_EXTE
+* +-------------------------------------------------------------------------------------------------+
+* | [--->] IV_LOG_NUMBER                  TYPE        ZTA0117_FLT_LOG_NUMBER
+* | [--->] IV_JSON                        TYPE        STRING
+* +--------------------------------------------------------------------------------------</SIGNATURE>
+  METHOD set_log_exte.
+
+    DATA:
+       lw_log_exte TYPE zta01im_log_exte.
+
+    DATA:
+       li_log_exte TYPE TABLE OF zta01im_log_exte.
+
+    DATA:
+       v_xstring_json TYPE xstring.
+
+    " Convertir string a xstring
+    CALL FUNCTION 'SCMS_STRING_TO_XSTRING'
+      EXPORTING
+        text     = iv_json
+        encoding = '4110'  "Código para UTF-8
+      IMPORTING
+        buffer   = v_xstring_json.
+
+    lw_log_exte-mandt           = sy-mandt.
+    lw_log_exte-lognumber       = iv_log_number.
+    lw_log_exte-erdat           = sy-datum.
+    lw_log_exte-ertim           = sy-timlo.
+    lw_log_exte-ernam           = sy-uname.
+    lw_log_exte-entity          = 'IM'.
+    lw_log_exte-service_odata   = 'IM Fleetio'.
+    lw_log_exte-event           = 'POST'.
+    lw_log_exte-objkey          = iv_log_number.
+    lw_log_exte-external_sys_id = 'CONFLUENT'.
+    lw_log_exte-in_out          = 'O'.
+    lw_log_exte-status          = 'O1'.
+*    lw_log_exte-objectclas      =
+*    lw_log_exte-objectid        =
+*    lw_log_exte-changenr        =
+*    lw_log_exte-aedat_ackno     =
+*    lw_log_exte-aetim_ackno     =
+*    lw_log_exte-msg_ack         =
+*    lw_log_exte-transid_event   =
+    lw_log_exte-json_len = xstrlen( v_xstring_json ).
+    lw_log_exte-json_msg = v_xstring_json.
+
+    MODIFY zta01im_log_exte FROM lw_log_exte.
+
+  ENDMETHOD.
+
+
+* <SIGNATURE>---------------------------------------------------------------------------------------+
 * | Instance Public Method ZCXCL_BMMRMTBM_MB_DOC_FLEETIO->VALIDATE_DOCUMENT
 * +-------------------------------------------------------------------------------------------------+
 * | [--->] IW_MKPF                        TYPE        MKPF
@@ -830,6 +985,7 @@ CLASS ZCXCL_BMMRMTBM_MB_DOC_FLEETIO IMPLEMENTATION.
 * <SIGNATURE>---------------------------------------------------------------------------------------+
 * | Instance Public Method ZCXCL_BMMRMTBM_MB_DOC_FLEETIO->WRITE_LOG
 * +-------------------------------------------------------------------------------------------------+
+* | [--->] IV_LOG_NUMBER                  TYPE        ZTA0117_FLT_LOG_NUMBER
 * | [--->] IW_MKPF                        TYPE        MKPF
 * | [--->] IW_MSEG                        TYPE        MSEG
 * | [--->] IV_JSON                        TYPE        STRING
@@ -851,10 +1007,6 @@ CLASS ZCXCL_BMMRMTBM_MB_DOC_FLEETIO IMPLEMENTATION.
 
     "Generar log number único
     GET TIME STAMP FIELD lv_timestamp.
-    CONCATENATE iw_mseg-mblnr
-                iw_mseg-mjahr
-                iw_mseg-zeile
-                INTO v_log_number SEPARATED BY '-'.
 
     "Derivar datos adicionales
     IF iw_mseg-menge IS NOT INITIAL.
@@ -879,8 +1031,8 @@ CLASS ZCXCL_BMMRMTBM_MB_DOC_FLEETIO IMPLEMENTATION.
 
     "Construir registro de log
     lw_log-mandt            = sy-mandt.
-    lw_log-log_number       = v_log_number.
-    lw_log-object_key       = v_log_number.
+    lw_log-log_number       = iv_log_number.
+    lw_log-object_key       = iv_log_number.
     lw_log-mblnr            = iw_mseg-mblnr.
     lw_log-mjahr            = iw_mseg-mjahr.
     lw_log-zeile            = iw_mseg-zeile.

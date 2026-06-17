@@ -64,18 +64,38 @@ CLASS cl_alv_controller IMPLEMENTATION.
       INTO CORRESPONDING FIELDS OF TABLE it_log_data
       WHERE werks IN s_werks
         AND mblnr IN s_mblnr
-        AND send_date IN s_budat
-        AND status = 'ERROR'.
-    IF sy-subrc = 0.
+        AND send_date IN s_budat.
+    IF p_all = abap_false.
+      DELETE it_log_data WHERE status <> 'ERROR'.
+    ENDIF.
+
+    IF it_log_data[] IS NOT INITIAL.
       SORT it_log_data BY log_number.
 
       "Asignar semáforo según status
+      DATA: ls_scol TYPE lvc_s_scol.
+
       LOOP AT it_log_data INTO wa_log_data.
         IF wa_log_data-status = 'ERROR'.
           wa_log_data-traffic_light = '1'.  "Rojo
         ELSE.
           wa_log_data-traffic_light = '3'.  "Verde
         ENDIF.
+
+        "Asignar color dinámico a la celda STATUS
+        CLEAR: wa_log_data-cell_color, ls_scol.
+        ls_scol-fname = 'STATUS'.
+        IF wa_log_data-status = 'SENT'.
+          ls_scol-color-col = 5.  "Verde
+          ls_scol-color-int = 1.
+          ls_scol-color-inv = 0.
+        ELSEIF wa_log_data-status = 'ERROR'.
+          ls_scol-color-col = 6.  "Rojo
+          ls_scol-color-int = 1.
+          ls_scol-color-inv = 0.
+        ENDIF.
+        APPEND ls_scol TO wa_log_data-cell_color.
+
         MODIFY it_log_data FROM wa_log_data.
       ENDLOOP.
     ENDIF.
@@ -102,6 +122,7 @@ CLASS cl_alv_controller IMPLEMENTATION.
       ms_layout-sel_mode   = 'A'.  "Selección múltiple con checkbox
       ms_layout-cwidth_opt = abap_true.
       ms_layout-excp_fname = 'TRAFFIC_LIGHT'.  "Campo de semáforo
+      ms_layout-ctab_fname = 'CELL_COLOR'.     "Campo de color por celda
 
       "Variante de display
       ms_variant-report = sy-repid.
@@ -157,7 +178,6 @@ CLASS cl_alv_controller IMPLEMENTATION.
           ls_fcat-coltext = 'Log No.'.
         WHEN 'STATUS'.
           ls_fcat-coltext = 'Estado'.
-          ls_fcat-emphasize = 'C610'.
         WHEN 'ERROR_TEXT'.
           ls_fcat-coltext = 'Mensaje Error'.
           ls_fcat-outputlen = 40.
@@ -255,23 +275,39 @@ CLASS cl_alv_controller IMPLEMENTATION.
                 reprocess_flag = 'X'
                 reprocess_date = sy-datum
                 reprocess_time = sy-uzeit
-                reprocess_by = sy-uname
-                send_date = sy-datum
-                send_time = sy-uzeit
-                response_msg = lv_response
-                error_text = ''
+                reprocess_by   = sy-uname
+                send_date      = sy-datum
+                send_time      = sy-uzeit
+                payload_json   = lv_json
+                response_msg   = lv_response
+                error_text     = space
             WHERE log_number = wa_log_data-log_number.
 
           "Actualizar tabla interna para refrescar ALV
-          wa_log_data-status         = 'SENT'.
-          wa_log_data-reprocess_flag = 'X'.
-          wa_log_data-reprocess_date = sy-datum.
-          wa_log_data-reprocess_time = sy-uzeit.
-          wa_log_data-reprocess_by   = sy-uname.
-          wa_log_data-error_text     = ''.
+          wa_log_data-status          = 'SENT'.
+          wa_log_data-traffic_light   = '3'.
+          wa_log_data-reprocess_flag  = 'X'.
+          wa_log_data-payload_json    = lv_json.
+          wa_log_data-reprocess_date  = sy-datum.
+          wa_log_data-reprocess_time  = sy-uzeit.
+          wa_log_data-reprocess_by    = sy-uname.
+          wa_log_data-error_text      = space.
+
+          "Actualizar color dinámico a verde (SENT)
+          CLEAR wa_log_data-cell_color.
+          DATA ls_scol_ok TYPE lvc_s_scol.
+          ls_scol_ok-fname     = 'STATUS'.
+          ls_scol_ok-color-col = 5.  "Verde
+          ls_scol_ok-color-int = 1.
+          ls_scol_ok-color-inv = 0.
+          APPEND ls_scol_ok TO wa_log_data-cell_color.
+
           MODIFY it_log_data FROM wa_log_data INDEX lw_row-index.
 
           lv_count_ok = lv_count_ok + 1.
+
+          lo_badi_impl->set_log_exte( iv_log_number = wa_log_data-log_number
+                                      iv_json = lv_json ).
         ELSE.
           UPDATE zta0117_flt_invl
             SET reprocess_flag = 'X'

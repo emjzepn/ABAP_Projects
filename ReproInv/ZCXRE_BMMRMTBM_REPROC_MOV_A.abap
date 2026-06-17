@@ -72,9 +72,11 @@ TYPES: BEGIN OF ty_log_data,
          reprocess_time   TYPE zta0117_flt_invl-reprocess_time,
          reprocess_by     TYPE zta0117_flt_invl-reprocess_by,
          status           TYPE zta0117_flt_invl-status,
+         payload_json     TYPE zta0117_flt_invl-payload_json,
          response_msg     TYPE zta0117_flt_invl-response_msg,
          error_text       TYPE zta0117_flt_invl-error_text,
          traffic_light    TYPE c LENGTH 1,
+         cell_color       TYPE lvc_t_scol,
        END OF ty_log_data.
 
 DATA:
@@ -94,4 +96,6 @@ SELECTION-SCREEN BEGIN OF BLOCK b01 WITH FRAME TITLE text-001.
 SELECT-OPTIONS: s_werks FOR mseg-werks OBLIGATORY,  "Centro
                 s_mblnr FOR mkpf-mblnr,             "Documento material
                 s_budat FOR mkpf-budat.             "Fecha contabilización
+SELECTION-SCREEN SKIP 1.
+PARAMETERS: p_all TYPE char1 AS CHECKBOX.
 SELECTION-SCREEN END OF BLOCK b01.
