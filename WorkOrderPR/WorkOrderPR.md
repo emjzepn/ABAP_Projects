@@ -32,7 +32,7 @@ John Doe
 Me
 
 ### 1.6 User Name:
-Wilfrido Arroyo
+John Doe
 
 ### 1.7 Related Business Process:
 PM / MM Purchasing
