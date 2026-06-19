@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Diagrama de Flujo WorkOrderPR</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <script>
+        mermaid.initialize({ startOnLoad: true, theme: 'default' });
+    </script>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; text-align: center; }
+        .mermaid { display: inline-block; text-align: left; }
+    </style>
+</head>
+<body>
+    <h2>Diagrama de Flujo del Proceso WorkOrderPR</h2>
+    <div class="mermaid">
+flowchart TD
+    subgraph Fase1 ["Fase 1: Captura de Datos (Eventos en SAP)"]
+        A1("Usuario/Sistema") -->|"Crea Solicitud de Pedido"| B1("BAdI / Exit PR")
+        A2("Usuario/Sistema") -->|"Crea Pedido de Compra"| B2("BAdI / Exit PO")
+        A3("Usuario/Sistema") -->|"Modifica Pedido de Compra"| B3("BAdI / Exit PO")
+        
+        B1 --> C1["register_pr_creation"]
+        B2 --> C2["register_po_creation"]
+        B3 --> C3["register_po_change"]
+        
+        C1 -->|"Guarda Trazabilidad"| D[("Tabla ZPMT_FLT_PRPO (Status PENDING)")]
+        C2 -->|"Guarda Trazabilidad"| D
+        C3 -->|"Guarda Trazabilidad"| D
+    end
+
+    subgraph Fase2 ["Fase 2: Envío de Datos (Generación JSON)"]
+        E("Programa Reporte / Job de Fondo") -->|"Inicia ejecución"| F["get_pending_records"]
+        D -.->|"Lee pendientes"| F
+        F --> G["Agrupa por WorkOrder / Fleetio ID"]
+        G --> H["build_json_response"]
+        H --> I["Envía JSON a Fleetio / Middleware"]
+        I -->|"Éxito o Error"| J["update_outbound_status"]
+        J -->|"Actualiza DB"| K[("Tabla ZPMT_FLT_PRPO (Actualiza Status)")]
+    end
+    
+    D -.->|"Actualizado a enviado/error"| K
+    
+    style C1 fill:#d4edda,stroke:#28a745
+    style C2 fill:#d4edda,stroke:#28a745
+    style C3 fill:#d4edda,stroke:#28a745
+    style F fill:#cce5ff,stroke:#007bff
+    style H fill:#cce5ff,stroke:#007bff
+    style J fill:#cce5ff,stroke:#007bff
+    </div>
+</body>
+</html>

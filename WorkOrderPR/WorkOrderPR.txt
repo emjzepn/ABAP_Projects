@@ -1,0 +1,1603 @@
+Functional Design for Developments and Configurations
+Project:  SAP-US Functional Specification - 
+Fleetio
+ PR/PO Outbound Response Interface
+Project:
+SAP-US Functional Specification - 
+Fleetio
+ PR/PO Outbound Response Interface
+Requirement
+ ID:
+SR
+Date:
+16-06-2026
+Copyright:
+Company:
+Customer
+:
+Priority
+:
+HIGH
+Introduction
+Created
+ 
+by
+:
+John Doe
+Email and 
+telephone
+ 
+contact
+:
+John Doe
+Authorized
+ 
+by
+:
+John Doe
+Authorization
+ date:
+16-06-2026
+Requested
+ 
+by
+:
+Me
+User
+ Name:
+Wilfrido Arroyo
+Related
+ Business Process:
+PM / MM Purchasing
+Application
+:
+SAP ECC.
+Module / 
+Sub-module
+:
+PM / MM
+Application
+ 
+Version
+:
+Optional - Specify the version of application where the requirement will be solved
+Index
+Functional Design for Developments and Configurations
+1
+1
+Introduction
+2
+1.1
+Created by:
+2
+1.2
+Email and telephone contact:
+2
+1.3
+Authorized by:
+2
+1.4
+Authorization date:
+2
+1.5
+Requested by:
+2
+1.6
+User Name:
+2
+1.7
+Related Business Process:
+2
+1.8
+Application:
+2
+1.9
+Module / Sub-module:
+2
+1.10
+Application Version:
+2
+2
+Index
+3
+3
+Modifications Log Book
+4
+4
+General Definition
+5
+4.1
+Requirement description:
+5
+4.2
+Geographical Impact
+5
+4.3
+Frequency and User Concurrency execution:
+5
+4.4
+Data Volume:
+5
+4.5
+Reason for the development or configuration (Business Value):
+5
+4.6
+Assumptions:
+5
+4.7
+Acceptance criteria:
+5
+4.8
+Comments:
+5
+4.9
+Requirement Type
+6
+4.10
+Required components by:
+15
+5
+Additional Requirements
+15
+5.1
+Special Instructions:
+15
+6
+Glossary of Concepts
+16
+7
+Change Controls
+17
+Modifications 
+Log Book
+Version
+Clarity ID
+or Folio ID
+Date
+Description
+Author
+1.7
+16-06-2026
+Se separa la salida como log de WO y respuesta PR/PO.
+John Doe
+General Definition
+Requirement
+ 
+description
+:
+Se requiere una interfaz de salida SAP -> 
+Fleetio
+ para enviar el resultado de creación de la Work 
+Order
+ y la trazabilidad de compras asociada. La creación/modificación de la WO por JSON es un flujo 
+inbound
+ independiente; 
+El flujo enviará a 
+Fleetio
+ el AUFNR cuando la WO se cree correctamente. Si la BAPI falla, se enviará el mensaje registrado en ZTA0108_ODATAL. Después, cuando SAP genere la PR, la interfaz enviará los datos de requisición; cuando Compras genere la PO o cuando EKPO-ELIKZ quede en X, se reenviará el JSON con el avance correspondiente.
+Geographical
+ 
+Impact
+USA 
+region
+Frequency and User Concurrency 
+execution
+:
+Ejecución por evento: creación/error de WO, creación/modificación de PR, creación/modificación de PO, borrado de posición PO y actualización de entrega completa en EKPO-ELIKZ.
+Data 
+Volume
+:
+Concept
+Definition
+Work Orders
+WOs 
+Fleetio
+ registradas en ZTA0108_ODATAL.
+Purchase 
+Requisitions
+Una WO puede generar una o varias posiciones de PR.
+Purchase Orders
+Una PR puede convertirse en una o varias posiciones de PO.
+Outbound
+ 
+Messages
+Se envía respuesta por etapa: WO, PR, PO, modificación de cantidad, borrado o entrega completa de PO.
+Reason for the development or configuration (Business Value):
+Dar a 
+Fleetio
+ visibilidad del resultado de la WO en SAP y del avance de compras sin seguimiento manual. Con esto 
+Fleetio
+ podrá conocer el AUFNR, la PR, la PO, los cambios de cantidad, el borrado de posiciones y la entrega completa de la posición.
+Assumptions
+:
+• La interfaz 
+inbound
+ de WO guarda el resultado de BAPI_ALM_ORDER_MAINTAIN en ZTA0108_ODATAL.
+• La correlación 
+Fleetio
+/SAP se toma de ZTA0108_ODATAL usando EXTERNAL_ID, WORKORDER y ORIGIN_ID.
+• Solo se procesan documentos con AUFNR y planta activa en ZTA0117_FLT_CONF.
+• Las BAdIs solo actualizan trazabilidad; el envío a 
+Confluent
+/
+Fleetio
+ lo realiza el Bridge/
+job
+ fuera del 
+update
+ 
+task
+.
+• EKPO-ELIKZ = X indica posición de PO entregada completamente; EKPO-LOEKZ indica posición borrada y EKPO-MENGE refleja cambios de cantidad.
+Acceptance
+ 
+criteria
+:
+• WO creada: el JSON debe regresar TYPE = S, WORKORDER = AUFNR y el mensaje de éxito de ZTA0108_ODATAL.
+• WO con error: el JSON debe regresar TYPE = E y el mensaje de error guardado en ZTA0108_ODATAL.
+• PR generada: la posición debe registrarse en ZPMT_FLT_PRPO y enviarse con estatus PR_CREATED / PR_UPDATED.
+• PO generada: la posición debe registrarse en ZPMT_FLT_PRPO y enviarse con EBELN / EBELP.
+• PO modificada: si cambia EKPO-MENGE, EKPO-NETPR o EKPO-NETWR, se debe reenviar la posición con 
+Action
+ = UPDATED.
+• PO borrada: si EKPO-LOEKZ se llena, se debe reenviar la posición con 
+Action
+ = DELETED.
+• PO modificada/borrada/entregada: si cambia EKPO-MENGE, se llena EKPO-LOEKZ o EKPO-ELIKZ = X, se debe reenviar la PO con la acción correspondiente a nivel posición.
+• Si falla el envío del Bridge, el registro debe quedar en ERROR/RETRY para reproceso.
+Comments
+:
+El alcance no incluye el detalle técnico de la interfaz 
+inbound
+ de WO
+.
+Requirement
+ 
+Type
+SAP ECC 
+Functional
+ 
+Specification
+Fleetio
+ <- SAP outbound log / PR / PO response through Bridge / Confluent channel
+Element
+Definition
+SAP 
+Object
+PM Work Order / MM PR / MM PO.
+Source
+ 
+System
+SAP ECC.
+Target 
+System
+Fleetio
+.
+Outbound
+ Channel
+SAP -> PR/PO Bridge -> Confluent -> 
+Fleetio
+.
+Main 
+Triggers
+ZTA0108_ODATAL log, ME_REQ_POSTED, ME_PURCHDOC_POSTED and EKPO changes: MENGE, LOEKZ, ELIKZ.
+Monitoring
+ / 
+Persistence
+ZTA0108_ODATAL para WO; ZPMT_FLT_PRPO para PR/PO y control 
+outbound
+.
+Plant Control
+ZTA0117_FLT_CONF valida plantas/configuración habilitada.
+Response Content
+FleetioId
+, SAP Work Order, 
+mensajes
+ BAPI, PRs, POs, EKPO_MENGE, EKPO_LOEKZ and EKPO_ELIKZ.
+Out
+ 
+of
+ Scope
+Inbound WO detail, confirmations, inventories and Goods Receipts detail.
+1. Flujo funcional consolidado
+Step
+Process Point
+Functional
+ Rule
+Result
+1
+JSON entrada 
+Fleetio
+ -> SAP
+La interfaz 
+inbound
+ independiente ejecuta BAPI_ALM_ORDER_MAINTAIN.
+ZTA0108_ODATAL guarda éxito o error.
+2
+WO Log 
+Outbound
+El Bridge lee ZTA0108_ODATAL.
+Envía AUFNR si TYPE = S o mensaje BAPI si TYPE = E.
+3
+PR automática
+ desde WO
+SAP genera/modifica la PR y ME_REQ_POSTED valida EBKN-AUFNR, WERKS y correlación.
+ZPMT_FLT_PRPO 
+guarda
+ PR_CREATED / PR_UPDATED.
+4
+PO por Compras
+Compras convierte la PR a PO en ME21N / ME59N; ME_PURCHDOC_POSTED valida AUFNR y correlación.
+ZPMT_FLT_PRPO guarda PO_CREATED / PO_UPDATED, EBELN y EBELP.
+5
+Cambios posteriores de PO
+SAP actualiza EKPO-MENGE, EKPO-LOEKZ o EKPO-ELIKZ.
+Se reenvía JSON con 
+Action
+ = UPDATED, DELETED o COMPLETED a nivel posición.
+6
+Bridge 
+outbound
+Lee pendientes, arma JSON y publica en 
+Confluent
+.
+Actualiza SENT o ERROR/RETRY.
+2. Alcance funcional
+Concept
+Rule
+WO Log Response
+Enviar a 
+Fleetio
+ el AUFNR o el error registrado en ZTA0108_ODATAL.
+PR Capture
+Capturar PR cuando la posición tenga EBKN-AUFNR y la WO exista en el log 
+Fleetio
+.
+PO Capture
+Capturar PO cuando la imputación tenga EKKN-AUFNR y relación con la PR/WO 
+Fleetio
+.
+PO 
+Update
+/
+Delete
+/Complete
+Reenviar cuando cambie EKPO-MENGE, se llene EKPO-LOEKZ o EKPO-ELIKZ = X.
+Traceability
+Guardar PR/PO, cantidad, indicador de borrado, entrega completa y estatus 
+outbound
+ en ZPMT_FLT_PRPO.
+3. Desarrollo ABAP
+Order
+ABAP 
+Object
+ / 
+Activity
+Expected
+ 
+Detail
+1
+WO Log 
+Outbound
+Leer ZTA0108_ODATAL y enviar WO_CREATED / WO_ERROR.
+2
+BAdI
+ PR - ME_REQ_POSTED
+Detectar PR con EBKN-AUFNR, planta activa y correlación 
+Fleetio
+.
+3
+BAdI
+ PO - ME_PURCHDOC_POSTED
+Detectar PO con EKKN-AUFNR y actualizar datos EBELN/EBELP.
+4
+PO 
+Changes
+Detectar cambios de cantidad, EKPO-LOEKZ y EKPO-ELIKZ; enviar UPDATED, DELETED o COMPLETED a nivel posición.
+5
+PR/PO Trace
+Insertar/actualizar ZPMT_FLT_PRPO con datos del documento y control 
+outbound
+.
+6
+Outbound
+ Bridge
+Seleccionar pendientes, construir JSON, enviar a 
+Confluent
+ y actualizar estatus.
+4. Objetos técnicos
+Mechanism
+Technical
+ Name
+Use
+Z Table
+ZTA0108_ODATAL
+Log de creación/error de WO y correlación 
+Fleetio
+.
+BAdI
+ME_REQ_POSTED
+Captura PR después del guardado estándar SAP.
+BAdI
+ME_PURCHDOC_POSTED
+Captura PO después del guardado estándar SAP.
+Field
+EKPO-MENGE / EKPO-LOEKZ / EKPO-ELIKZ
+Campos de posición PO para cantidad, borrado y entrega completa.
+Z Table
+ZPMT_FLT_PRPO
+Detalle PR/PO, cantidad, LOEKZ, ELIKZ y estatus 
+outbound
+ por WO/
+FleetioId
+.
+Z Table
+ZTA0117_FLT_CONF
+Plantas/configuración habilitada.
+Class
+ZCL_FLT_PRPO_TRACKER
+Centraliza 
+insert
+/
+update
+ de ZPMT_FLT_PRPO.
+Class
+ZCL_FLT_PRPO_JSON_BUILDER
+Construye JSON de salida.
+Class / Job
+ZCL_FLT_PRPO_OUTBOUND
+Controla envío, reintento y actualización de estatus.
+5. Validaciones principales
+Rule
+Area
+Description
+WO-01
+Log WO
+Leer registros ZTA0108_ODATAL de 
+Fleetio
+ con TYPE = S/E.
+WO-02
+Response
+TYPE = S 
+envía
+ AUFNR; TYPE = E 
+envía
+ MESSAGE de BAPI_ALM_ORDER_MAINTAIN.
+PR-01
+Trigger
+ME_REQ_POSTED después de crear/modificar PR.
+PR-02
+Account
+ 
+assignment
+La posición de PR debe tener EBKN-AUFNR y planta activa en ZTA0117_FLT_CONF.
+PR-03
+Correlation
+AUFNR debe existir en ZTA0108_ODATAL.
+PO-01
+Trigger
+ME_PURCHDOC_POSTED después de crear/modificar PO.
+PO-02
+Account
+ 
+assignment
+La imputación de PO debe tener EKKN-AUFNR.
+PO-03
+PR/PO 
+link
+Usar EKPO-BANFN/BNFPO para relacionar PO con PR.
+PO-04
+PO 
+changes
+Si cambia EKPO-MENGE, EKPO-NETPR o EKPO-NETWR, reenviar la posición con 
+Action
+ = UPDATED.
+ALL-01
+Non-eligible 
+records
+Si falta AUFNR, planta activa o correlación 
+Fleetio
+, se ignora el registro sin bloquear SAP.
+PO-05
+Deletion
+Si EKPO-LOEKZ se llena, reenviar la posición con 
+Action
+ = DELETED.
+PO-06
+Complete 
+delivery
+Si EKPO-ELIKZ = X, reenviar la posición con 
+Action
+ = COMPLETED.
+6. Z Table Definition
+ZPMT_FLT_PRPO - multiple PR/PO detail
+Field
+Key
+Type
+Len.
+Source
+ / Reference
+Description
+MANDT
+Yes
+CLNT
+3
+SAP Client
+Client.
+FLEETIO_ID
+Yes
+CHAR
+40
+ZTA0108_ODATAL-EXTERNAL_ID
+Fleetio
+ Work 
+Order
+ 
+identifier
+.
+AUFNR
+Yes
+CHAR
+12
+ZTA0108_ODATAL-WORKORDER / AUFK-AUFNR
+SAP Work 
+Order
+.
+DOC_TYPE
+Yes
+CHAR
+2
+PR / PO
+Document
+ 
+type
+.
+LOG_SEQ
+Yes
+NUMC
+6
+Sequential
+Sequential line for multiple PR/PO items.
+STATUS
+No
+CHAR
+15
+Process
+PR_CREATED, PR_UPDATED, PO_CREATED, PO_UPDATED, DELETED, ERROR.
+CODE
+No
+CHAR
+30
+Process 
+code
+Technical
+ 
+process
+ 
+code
+.
+MESSAGE_TEXT
+No
+CHAR
+220
+BAPI / Bridge
+Main 
+message
+ 
+text
+.
+BANFN
+No
+CHAR
+10
+EBAN-BANFN
+Purchase 
+Requisition
+.
+BNFPO
+No
+NUMC
+5
+EBAN-BNFPO
+Purchase 
+Requisition
+ 
+item
+.
+EBELN
+No
+CHAR
+10
+EKKO/EKPO-EBELN
+Purchase 
+Order
+.
+EBELP
+No
+NUMC
+5
+EKPO-EBELP
+Purchase 
+Order
+ 
+item
+.
+LIFNR
+No
+CHAR
+10
+EKKO-LIFNR
+Vendor
+ 
+number
+.
+WAERS
+No
+CUKY
+5
+EKKO-WAERS / EBAN-WAERS
+Currency
+.
+PR_MATNR
+No
+CHAR
+18
+EBAN-MATNR
+Material/SKU 
+from
+ PR.
+PR_TXZ01
+No
+CHAR
+40
+EBAN-TXZ01
+PR 
+item
+ 
+description
+.
+PR_MENGE
+No
+QUAN
+13,3
+EBAN-MENGE
+PR 
+requested
+ 
+quantity
+.
+PR_MEINS
+No
+UNIT
+3
+EBAN-MEINS
+PR 
+unit
+ 
+of
+ 
+measure
+.
+PO_MATNR
+No
+CHAR
+18
+EKPO-MATNR
+Material/SKU 
+from
+ PO.
+PO_TXZ01
+No
+CHAR
+40
+EKPO-TXZ01
+PO 
+item
+ 
+description
+.
+PO_MENGE
+No
+QUAN
+13,3
+EKPO-MENGE
+PO 
+ordered
+ 
+quantity
+.
+PO_MEINS
+No
+UNIT
+3
+EKPO-MEINS
+PO 
+order
+ 
+unit
+.
+NETPR
+No
+CURR
+13,2
+EKPO-NETPR
+Net 
+price
+.
+NETWR
+No
+CURR
+13,2
+EKPO-NETWR
+Net PO 
+item
+ 
+value
+.
+EBAN_LOEKZ
+No
+CHAR
+1
+EBAN-LOEKZ
+PR 
+deletion
+ 
+indicator
+.
+EKPO_LOEKZ
+No
+CHAR
+1
+EKPO-LOEKZ
+PO 
+deletion
+ 
+indicator
+.
+EKPO_ELIKZ
+No
+CHAR
+1
+EKPO-ELIKZ
+X = PO item completely delivered.
+OUT_
+STATUS
+No
+CHAR
+12
+Bridge control
+PENDING, SENT, ERROR, RETRY.
+OUT_MESSAGE_ID
+No
+CHAR
+50
+Bridge control
+Outbound
+ 
+technical
+ 
+message
+ ID.
+OUT_ERROR_TEXT
+No
+CHAR
+220
+Bridge control
+Outbound
+ error 
+text
+.
+RETRY_COUNT
+No
+NUMC
+3
+Bridge control
+Outbound
+ 
+retry
+ 
+counter
+.
+CHANGED_ON
+No
+DATS
+8
+SY-DATUM
+Last 
+processing
+ date.
+CHANGED_AT
+No
+TIMS
+6
+SY-UZEIT
+Last 
+processing
+ time.
+7. Data 
+Mapping
+Header 
+Mapping
+JSON Field
+SAP 
+Source
+Rule
+ZTA0108_ODATAL_ID
+ZTA0108_ODATAL-ID
+Objeto de log; para este flujo debe ser WO.
+ZTA0108_ODATAL_TYPE
+ZTA0108_ODATAL-TYPE
+S = éxito, E = error.
+ZTA0108_ODATAL_WORKORDER
+ZTA0108_ODATAL-WORKORDER
+AUFNR generado por SAP; vacío si hubo error.
+ZTA0108_ODATAL_EXTERNAL_ID
+ZTA0108_ODATAL-EXTERNAL_ID
+Identificador de WO en 
+Fleetio
+.
+ZTA0108_ODATAL_ORIGIN_ID
+ZTA0108_ODATAL-ORIGIN_ID
+Sistema origen; ejemplo 
+Fleetio
+.
+ZTA0108_ODATAL_MESSAGE
+ZTA0108_ODATAL-MESSAGE
+Mensaje de éxito/error de BAPI_ALM_ORDER_MAINTAIN.
+ZPMT_FLT_PRPO_
+STATUS
+Derivado del proceso
+SUCCESS o ERROR.
+ZPMT_FLT_PRPO_CODE
+ZPMT_FLT_PRPO-CODE / derivado
+WO_CREATED, WO_ERROR, PR_CREATED, PO_CREATED 
+o PO
+_UPDATED. 
+La entrega completa se informa a nivel posición con 
+Action
+ = COMPLETED.
+ZPMT_FLT_PRPO_MESSAGE_TEXT
+ZPMT_FLT_PRPO-MESSAGE_TEXT / ZTA0108_ODATAL-MESSAGE
+Mensaje funcional para 
+Fleetio
+.
+PurchaseRequisitions
+ 
+Mapping
+JSON Field
+SAP 
+Source
+Rule
+EBAN_BANFN
+EBAN-BANFN
+Número de PR.
+EBAN_BNFPO
+EBAN-BNFPO
+Posición de PR.
+EBKN_AUFNR
+EBKN-AUFNR
+Work 
+Order
+ SAP asociada.
+EBAN_WERKS
+EBAN-WERKS
+Planta de la PR.
+ZPMT_FLT_PRPO_PR_ACTION
+Derivado de 
+STATUS
+ / EBAN-LOEKZ
+PR_CREATED / PR_UPDATED / PO_CREATED / DELETED.
+EBAN_MATNR
+EBAN-MATNR
+Material si aplica.
+EBAN_TXZ01
+EBAN-TXZ01
+Texto de posición PR.
+EBAN_MENGE
+EBAN-MENGE
+Cantidad solicitada.
+EBAN_MEINS
+EBAN-MEINS
+Unidad de medida.
+EBAN_MATKL
+EBAN-MATKL
+Grupo de artículos.
+EBAN_EKGRP
+EBAN-EKGRP
+Grupo de compras.
+EBAN_EKORG
+EBAN-EKORG
+Organización de compras.
+EBAN_PREIS
+EBAN-PREIS
+Precio PR.
+EBAN_PEINH
+EBAN-PEINH
+Unidad de precio.
+EBAN_WAERS
+EBAN-WAERS
+Moneda.
+EBAN_EBELN
+EBAN-EBELN
+PO generada, si existe.
+EBAN_EBELP
+EBAN-EBELP
+Posición PO generada, si existe.
+EBAN_LOEKZ
+EBAN-LOEKZ
+Indicador de borrado.
+EBKN_SAKTO
+EBKN-SAKTO
+Cuenta contable.
+EBKN_KOKRS
+EBKN-KOKRS
+Área de 
+controlling
+.
+PurchaseOrders
+ 
+Mapping
+JSON Field
+SAP 
+Source
+Rule
+EKKO_EBELN
+EKKO/EKPO-EBELN
+Número de PO.
+EKKO_LIFNR
+EKKO-LIFNR
+Proveedor.
+EKKO_EKORG
+EKKO-EKORG
+Organización de compras.
+EKKO_EKGRP
+EKKO-EKGRP
+Grupo de compras.
+EKKO_WAERS
+EKKO-WAERS
+Moneda.
+LFA1_NAME1
+LFA1-NAME1
+Nombre de proveedor, si se consulta LFA1.
+Items[].ZPMT
+_FLT_PRPO_PO_ACTION
+Derivado de cambio en EKPO-MENGE / EKPO-LOEKZ / EKPO-ELIKZ
+CREATED / UPDATED / DELETED / COMPLETED.
+Items
+[].EKPO
+_EBELN
+EKPO-EBELN
+Número de PO.
+Items
+[].EKPO
+_EBELP
+EKPO-EBELP
+Posición de PO.
+Items
+[].EBAN
+_BANFN
+EKPO-BANFN / EBAN-BANFN
+PR origen.
+Items
+[].EBAN
+_BNFPO
+EKPO-BNFPO / EBAN-BNFPO
+Posición PR origen.
+Items
+[].EKPO
+_MATNR
+EKPO-MATNR
+Material si aplica.
+Items
+[].EKPO
+_TXZ01
+EKPO-TXZ01
+Texto de posición PO.
+Items
+[].EKPO
+_WERKS
+EKPO-WERKS
+Planta.
+Items
+[].EKPO
+_LGORT
+EKPO-LGORT
+Almacén.
+Items
+[].EKPO
+_MATKL
+EKPO-MATKL
+Grupo de artículos.
+Items
+[].EKPO
+_MENGE
+EKPO-MENGE
+Cantidad ordenada; reenviar si cambia.
+Items
+[].EKPO
+_MEINS
+EKPO-MEINS
+Unidad de orden.
+Items
+[].EKPO
+_BPRME
+EKPO-BPRME
+Unidad de precio.
+Items
+[].EKPO
+_PEINH
+EKPO-PEINH
+Unidad de precio.
+Items
+[].EKPO
+_NETPR
+EKPO-NETPR
+Precio neto.
+Items
+[].EKPO
+_NETWR
+EKPO-NETWR
+Valor neto de posición.
+Items
+[].EKPO
+_LOEKZ
+EKPO-LOEKZ
+Indicador de borrado; si se llena enviar 
+Action
+ = DELETED.
+Items
+[].EKPO
+_ELIKZ
+EKPO-ELIKZ
+X = posición entregada completamente; enviar 
+Action
+ = COMPLETED.
+8. 
+Outbound
+ Bridge Logic
+Step
+Action
+Rule
+1
+Select
+ 
+records
+Leer pendientes de ZTA0108_ODATAL y ZPMT_FLT_PRPO.
+2
+Group response
+Agrupar por EXTERNAL_ID/FLEETIO_ID y AUFNR.
+3
+Build
+ JSON
+Poblar encabezado, PR, PO, EKPO_MENGE, EKPO_LOEKZ, EKPO_ELIKZ y mensajes según etapa.
+4
+Send 
+to
+ 
+Confluent
+Publicar mediante Bridge.
+5
+Update
+ 
+result
+Marcar SENT o ERROR/RETRY con mensaje técnico.
+Action
+Meaning
+WO_CREATED
+WO creada correctamente; se envía AUFNR a 
+Fleetio
+.
+WO_ERROR
+WO no creada; se envía mensaje BAPI desde ZTA0108_ODATAL.
+PR_CREATED
+PR generada y ligada a la WO 
+Fleetio
+.
+PR_UPDATED
+PR modificada después
+ de la creación.
+PO_CREATED
+PO generada y ligada a la WO 
+Fleetio
+.
+PO_UPDATED
+PO modificada después de la creación; incluye cambios de cantidad o importe.
+COMPLETED
+EKPO-ELIKZ = X; posición PO completamente entregada.
+DELETED
+EKPO-LOEKZ lleno; posición PO borrada.
+ERROR
+Error en procesamiento o envío de salida.
+9. JSON Response
+Los ejemplos muestran la salida por etapa. Los valores de PR/PO se toman de EBAN, EBKN, EKKO y EKPO. ZTA0108_ODATAL solo se usa para log/correlación de WO y mensaje de 
+BAPI_ALM_ORDER_MAINTAIN. El campo ZPMT_FLT_PRPO_CODE se mantiene para el evento principal; los cambios de posición se informan en ZPMT_FLT_PRPO_PO_ACTION.
+9.1 Escenario: Work 
+Order
+ creada en SAP, PR/PO pendiente
+{
+  "ZTA0108_ODATAL_ID": "WO",
+  "ZTA0108_ODATAL_TYPE": "S",
+  "ZTA0108_ODATAL_WORKORDER": "401478703",
+  "ZTA0108_ODATAL_EXTERNAL_ID": "10000001",
+  "ZTA0108_ODATAL_ORIGIN_ID": "
+Fleetio
+",
+  "ZTA0108_ODATAL_MESSAGE": "Order %00000000001 saved with number 401478703",
+  "ZPMT_FLT_PRPO_STATUS": "SUCCESS",
+  "ZPMT_FLT_PRPO_CODE": "WO_CREATED",
+  "ZPMT_FLT_PRPO_MESSAGE_TEXT": "SAP Work Order created and logged in ZTA0108_ODATAL.",
+  "
+PurchaseRequisitions
+": [],
+  "
+PurchaseOrders
+": []
+}
+9.2 
+Escenario
+: Purchase Requisition 
+generada
+{
+  "ZTA0108_ODATAL_ID": "WO",
+  "ZTA0108_ODATAL_TYPE": "S",
+  "ZTA0108_ODATAL_WORKORDER": "401478703",
+  "ZTA0108_ODATAL_EXTERNAL_ID": "10000001",
+  "ZTA0108_ODATAL_ORIGIN_ID": "
+Fleetio
+",
+  "ZPMT_FLT_PRPO_STATUS": "SUCCESS",
+  "ZPMT_FLT_PRPO_CODE": "PR_CREATED",
+  "ZPMT_FLT_PRPO_MESSAGE_TEXT": "Purchase Requisition created for SAP Work Order.",
+  "
+PurchaseRequisitions
+": [
+    {
+      "EBAN_BANFN": "11142445",
+      "EBAN_BNFPO": "00010",
+      "EBKN_AUFNR": "401478703",
+      "EBAN_WERKS": "7151",
+      "ZPMT_FLT_PRPO_PR_ACTION": "PR_CREATED",
+      "EBAN_MATNR": "",
+      "EBAN_TXZ01": "Servicio de 
+Limpieza
+",
+      "EBAN_MENGE": "1",
+      "EBAN_MEINS": "LE",
+      "EBAN_MATKL": "100005",
+      "EBAN_EKGRP": "D01",
+      "EBAN_EKORG": "7000",
+      "EBAN_PREIS": "1000",
+      "EBAN_PEINH": "1",
+      "EBAN_WAERS": "USD",
+      "EBAN_LOEKZ": "X",
+      "EBKN_SAKTO": "242500",
+      "EBKN_KOKRS": "7000"
+    }
+  ],
+  "
+PurchaseOrders
+": []
+}
+9.3 Escenario: Purchase 
+Order
+ generada desde la PR
+{
+  "ZTA0108_ODATAL_ID": "WO",
+  "ZTA0108_ODATAL_TYPE": "S",
+  "ZTA0108_ODATAL_WORKORDER": "401478703",
+  "ZTA0108_ODATAL_EXTERNAL_ID": "10000001",
+  "ZTA0108_ODATAL_ORIGIN_ID": "
+Fleetio
+",
+  "ZPMT_FLT_PRPO_STATUS": "SUCCESS",
+  "ZPMT_FLT_PRPO_CODE": "PO_CREATED",
+  "ZPMT_FLT_PRPO_MESSAGE_TEXT": "Purchase 
+Order
+ 
+created
+ 
+from
+ PR.",
+  "
+PurchaseRequisitions
+": [
+    {
+      "EBAN_BANFN": "11142445",
+      "EBAN_BNFPO": "00010",
+      "EBKN_AUFNR": "401478703",
+      "ZPMT_FLT_PRPO_PR_ACTION": "PO_CREATED",
+      "EBAN_EBELN": "4508314144",
+      "EBAN_EBELP": "00010"
+    }
+  ],
+  "
+PurchaseOrders
+": [
+    {
+      "EKKO_EBELN": "4508314144",
+      "EKKO_LIFNR": "0000702224",
+      "EKKO_EKORG": "7000",
+      "EKKO_EKGRP": "D01",
+      "EKKO_WAERS": "USD",
+      "LFA1_NAME1": "",
+      "
+Items
+": [
+        {
+          "ZPMT_FLT_PRPO_PO_ACTION": "CREATED",
+          "EKPO_EBELN": "4508314144",
+          "EKPO_EBELP": "00010",
+          "EBAN_BANFN": "11142445",
+          "EBAN_BNFPO": "00010",
+          "EKPO_MATNR": "",
+          "EKPO_TXZ01": "Servicio de Limpieza",
+          "EKPO_WERKS": "7151",
+          "EKPO_LGORT": "",
+          "EKPO_MATKL": "100005",
+          "EKPO_MENGE": "1",
+          "EKPO_MEINS": "LE",
+          "EKPO_BPRME": "LE",
+          "EKPO_PEINH": "1",
+          "EKPO_NETPR": "1000",
+          "EKPO_NETWR": "1000",
+          "EKPO_LOEKZ": "",
+          "EKPO_ELIKZ": ""
+        }
+      ]
+    }
+  ]
+}
+9.4 Escenario: Posición PO entregada completamente
+{
+  "ZTA0108_ODATAL_ID": "WO",
+  "ZTA0108_ODATAL_TYPE": "S",
+  "ZTA0108_ODATAL_WORKORDER": "401478703",
+  "ZTA0108_ODATAL_EXTERNAL_ID": "10000001",
+  "ZTA0108_ODATAL_ORIGIN_ID": "
+Fleetio
+",
+  "ZPMT_FLT_PRPO_STATUS": "SUCCESS",
+  "ZPMT_FLT_PRPO_MESSAGE_TEXT": "PO 
+item
+ 
+completely
+ 
+delivered
+ in SAP.",
+  "
+PurchaseRequisitions
+": [],
+  "
+PurchaseOrders
+": [
+    {
+      "EKKO_EBELN": "4508314144",
+      "EKKO_LIFNR": "0000702224",
+      "EKKO_WAERS": "USD",
+      "
+Items
+": [
+        {
+          "ZPMT_FLT_PRPO_PO_ACTION": "COMPLETED",
+          "EKPO_EBELN": "4508314144",
+          "EKPO_EBELP": "00010",
+          "EBAN_BANFN": "11142445",
+          "EBAN_BNFPO": "00010",
+          "EKPO_TXZ01": "Servicio de Limpieza",
+          "EKPO_MENGE": "1",
+          "EKPO_MEINS": "LE",
+          "EKPO_LOEKZ": "",
+          "EKPO_ELIKZ": "X"
+        }
+      ]
+    }
+  ]
+}
+9.5 Escenario: Cantidad de PO modificada
+{
+  "ZTA0108_ODATAL_ID": "WO",
+  "ZTA0108_ODATAL_TYPE": "S",
+  "ZTA0108_ODATAL_WORKORDER": "401478703",
+  "ZTA0108_ODATAL_EXTERNAL_ID": "10000001",
+  "ZTA0108_ODATAL_ORIGIN_ID": "
+Fleetio
+",
+  "ZPMT_FLT_PRPO_STATUS": "SUCCESS",
+  "ZPMT_FLT_PRPO_CODE": "PO_UPDATED",
+  "ZPMT_FLT_PRPO_MESSAGE_TEXT": "PO 
+item
+ 
+quantity
+ 
+updated
+ in SAP.",
+  "
+PurchaseRequisitions
+": [],
+  "
+PurchaseOrders
+": [
+    {
+      "EKKO_EBELN": "4508314144",
+      "EKKO_LIFNR": "0000702224",
+      "EKKO_WAERS": "USD",
+      "
+Items
+": [
+        {
+          "ZPMT_FLT_PRPO_PO_ACTION": "UPDATED",
+          "EKPO_EBELN": "4508314144",
+          "EKPO_EBELP": "00020",
+          "EBAN_BANFN": "11142445",
+          "EBAN_BNFPO": "00020",
+          "EKPO_MATNR": "000000000001001775",
+          "EKPO_TXZ01": "FUEL:DIESEL,OFF-ROAD,ULTRA-LOW",
+          "EKPO_MENGE": "3",
+          "EKPO_MEINS": "GAL",
+          "EKPO_NETPR": "100",
+          "EKPO_NETWR": "300",
+          "EKPO_LOEKZ": "",
+          "EKPO_ELIKZ": ""
+        }
+      ]
+    }
+  ]
+}
+9.6 Escenario: Posición de PO borrada
+{
+  "ZTA0108_ODATAL_ID": "WO",
+  "ZTA0108_ODATAL_TYPE": "S",
+  "ZTA0108_ODATAL_WORKORDER": "401478703",
+  "ZTA0108_ODATAL_EXTERNAL_ID": "10000001",
+  "ZTA0108_ODATAL_ORIGIN_ID": "
+Fleetio
+",
+  "ZPMT_FLT_PRPO_STATUS": "SUCCESS",
+  "ZPMT_FLT_PRPO_CODE": "PO_UPDATED",
+  "ZPMT_FLT_PRPO_MESSAGE_TEXT": "PO 
+item
+ 
+deletion
+ 
+flag
+ 
+updated
+ in SAP.",
+  "
+PurchaseRequisitions
+": [],
+  "
+PurchaseOrders
+": [
+    {
+      "EKKO_EBELN": "4508314144",
+      "EKKO_LIFNR": "0000702224",
+      "EKKO_WAERS": "USD",
+      "
+Items
+": [
+        {
+          "ZPMT_FLT_PRPO_PO_ACTION": "DELETED",
+          "EKPO_EBELN": "4508314144",
+          "EKPO_EBELP": "00030",
+          "EBAN_BANFN": "11142445",
+          "EBAN_BNFPO": "00030",
+          "EKPO_TXZ01": "FILTRO",
+          "EKPO_MENGE": "2",
+          "EKPO_MEINS": "ST",
+          "EKPO_LOEKZ": "L",
+          "EKPO_ELIKZ": ""
+        }
+      ]
+    }
+  ]
+}
+9.7 Escenario: Work 
+Order
+ no creada en SAP
+{
+  "ZTA0108_ODATAL_ID": "WO",
+  "ZTA0108_ODATAL_TYPE": "E",
+  "ZTA0108_ODATAL_WORKORDER": "",
+  "ZTA0108_ODATAL_EXTERNAL_ID": "AB2",
+  "ZTA0108_ODATAL_ORIGIN_ID": "
+Fleetio
+",
+  "ZTA0108_ODATAL_MESSAGE": "Error 
+during
+ 
+processing
+ 
+of
+ BAPI 
+methods
+",
+  "ZPMT_FLT_PRPO_
+STATUS
+": "ERROR",
+  "ZPMT_FLT_PRPO_CODE": "WO_ERROR",
+  "ZPMT_FLT_PRPO_MESSAGE_TEXT": "Error 
+during
+ 
+processing
+ 
+of
+ BAPI 
+methods
+",
+  "
+PurchaseRequisitions
+": [],
+  "
+PurchaseOrders
+": []
+}
+10. Error Handling and 
+Reprocessing
+Case
+Condition
+Expected
+ 
+Handling
+WO error
+BAPI_ALM_ORDER_MAINTAIN 
+devuelve
+ error.
+Enviar TYPE = E y MESSAGE desde ZTA0108_ODATAL.
+PR no elegible
+Sin EBKN-AUFNR, planta inactiva o sin correlación 
+Fleetio
+.
+Ignorar; 
+PO no elegible
+Sin EKKN-AUFNR o sin correlación 
+Fleetio
+.
+Ignorar; 
+Entrega completa
+EKPO-ELIKZ cambia a X.
+Reenviar JSON con 
+Action
+ = COMPLETED y EKPO_ELIKZ = X.
+Error de envío
+Confluent
+/Bridge no disponible.
+Actualizar OUT_
+STATUS
+ = ERROR/RETRY y guardar texto técnico.
+Evento duplicado
+Mismo AUFNR + BANFN + BNFPO + EBELN + EBELP.
+Actualizar registro 
+Cambio de cantidad PO
+EKPO-MENGE, EKPO-NETPR o EKPO-NETWR cambia.
+Reenviar JSON con 
+Action
+ = UPDATED y valores actualizados.
+Borrado de posición PO
+EKPO-LOEKZ se llena.
+Reenviar JSON con 
+Action
+ = DELETED y EKPO_LOEKZ.
+11. 
+Minimum
+ Test 
+Scenarios
+Scenario
+Description
+Input / 
+Condition
+Expected
+ 
+Result
+TS-01
+WO creada correctamente
+ZTA0108_ODATAL TYPE = S con WORKORDER.
+JSON contiene WO_CREATED y AUFNR.
+TS-02
+WO con error
+ZTA0108_ODATAL TYPE = E con MESSAGE.
+JSON contiene WO_ERROR y mensaje BAPI.
+TS-03
+PR creada
+ desde WO 
+Fleetio
+PR con EBKN-AUFNR y planta activa.
+ZPMT_FLT_PRPO = PR_CREATED; JSON con PR.
+TS-04
+PR sin AUFNR
+PR no imputada
+ a orden.
+Se ignora; no bloquea SAP.
+TS-05
+PO creada desde PR
+Compras convierte PR en PO.
+ZPMT_FLT_PRPO actualiza EBELN/EBELP y PO_CREATED.
+TS-06
+PO entregada completamente
+SAP actualiza EKPO-ELIKZ = X.
+JSON contiene 
+Action
+ = COMPLETED y EKPO_ELIKZ = X.
+TS-07
+Múltiples posiciones
+Varias posiciones ligadas al mismo AUFNR.
+JSON incluye todas las posiciones aplicables.
+TS-08
+Borrado PR/PO
+EBAN-LOEKZ o EKPO-LOEKZ lleno.
+Enviar 
+Action
+ = DELETED.
+TS-09
+Error en Bridge
+Falla envío a 
+Confluent
+.
+OUT_
+STATUS
+ = ERROR/RETRY.
+TS-10
+Cantidad PO modificada
+EKPO-MENGE cambia después de crear la PO.
+JSON contiene 
+Action
+ = UPDATED y nueva EKPO_MENGE.
+TS-11
+Borrado de posición PO
+EKPO-LOEKZ se llena.
+JSON contiene 
+Action
+ = DELETED y EKPO_LOEKZ.
+Additional Requirements
+Glossary of Concepts
+List 
+of
+ 
+concepts
+:
+Concept
+Definition
+AUFNR
+Número
+ de Work Order SAP.
+PR / BANFN
+Número de Purchase 
+Requisition
+.
+PO / EBELN
+Número de Purchase 
+Order
+.
+BNFPO
+Posición de Purchase 
+Requisition
+.
+EBELP
+Posición de Purchase 
+Order
+.
+ME_REQ_POSTED
+BAdI estándar para capturar PR después del guardado.
+ME_PURCHDOC_POSTED
+BAdI estándar para capturar PO después del guardado.
+ZTA0108_ODATAL
+Tabla log de entrada 
+OData
+ para creación/error de WO.
+ZPMT_FLT_PRPO
+Tabla Z de trazabilidad PR/PO y control 
+outbound
+.
+ZTA0117_FLT_CONF
+Tabla de configuración de plantas habilitadas.
+OUT_
+STATUS
+Estatus de envío del Bridge: PENDING, SENT, ERROR o RETRY.
+EKPO-ELIKZ
+Indicador de entrega completa de la posición PO. X = posición entregada completamente.
+Change Controls
+Version
+Date
+Change 
+Description
+Impact
